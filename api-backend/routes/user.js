@@ -4,7 +4,11 @@ const User = require("../models/User");
 const config = require("../config");
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
+const moment = require("moment");
 const isUser = require("../middlewares/isUser");
+const isAdmin = require("../middlewares/isAdmin");
+const Appointment = require("../models/Appointment");
+
 
 //registering a user
 router.post("/userregister", async (req, res) => {
@@ -59,7 +63,7 @@ router.post("/userlogin", async (req, res) => {
 		);
 		res.setHeader("token", token);
 		const name=user.firstname;
-		res.json({ user });
+		res.json({ user,token });
 	});
 });
 
@@ -79,9 +83,11 @@ router.post("/profregister", async (req, res) => {
 	const fee = req.body.fee;
 	const experience = req.body.experience;
 	const timings = req.body.timings;
+	const duration = req.body.duration;
+	const slot = req.body.slot;
 	const admin=true;
 
-	if (!password || !email || !firstname || !lastname || !confPassword || !mobilenum, !lat, !long , !address, !category, !fee, !experience, !timings)
+	if (!password || !email || !firstname || !lastname || !confPassword || !mobilenum, !lat, !long , !address, !category, !fee, !experience, !timings, !duration , !slot)
 		return res.status(400).send("One or more of the fields are missing.");
 
 	//checking for multiple accounts for a single email
@@ -92,11 +98,103 @@ router.post("/profregister", async (req, res) => {
 
 	// add user
 	bcrypt.hash(password, saltRounds, async function(err, hash) {
-		const newUser = new User({password:hash, firstname,lastname,email,mobilenum,admin,lat,long,address,category,fee,experience,timings });
+		const newUser = new User({password:hash, firstname,lastname,email,mobilenum,admin,lat,long,address,category,fee,experience,timings,duration ,slot });
 		return res.json(await newUser.save());
 	});
 	
 });
+
+//Book appointments
+router.post("/book-appointment", isUser, async (req, res) => {
+	try {
+	  req.body.status = "pending";
+	  req.body.userId = req.auth.user._id;
+	  req.body.date = moment(req.body.date, "DD-MM-YYYY").toISOString();
+	//   req.body.time = moment(req.body.time, "HH:mm").toISOString();
+	  const user = await User.findById(req.body.professionalId);
+	  req.body.duration = user.duration;
+	  const newAppointment = new Appointment(req.body);
+	  await newAppointment.save();
+	  res.status(200).send({
+		message: "Appointment booked successfully",
+		success: true,
+	  });
+	} catch (error) {
+	  console.log(error);
+	  res.status(500).send({
+		message: "Error booking appointment",
+		success: false,
+		error,
+	  });
+	}
+  });
+
+  
+  //Get appointments by user id 
+  router.get("/get-appointments-by-user-id", isUser, async (req, res) => {
+	try {
+	  const appointments = await Appointment.find({ userId: req.auth.user._id }).sort({date: -1});
+	  res.status(200).send({
+		message: "Appointments fetched successfully",
+		success: true,
+		data: appointments,
+	  });
+	} catch (error) {
+	  console.log(error);
+	  res.status(500).send({
+		message: "Error fetching appointments",
+		success: false,
+		error,
+	  });
+	}
+  });
+
+  //check appointments
+router.get(
+	"/get-appointments-by-doctor-id",
+	isAdmin,
+	async (req, res) => {
+	  try {
+		const doctor = await User.findOne({ _id: req.auth.user._id });
+		const appointments = await Appointment.find({ doctorId: doctor._id });
+		res.status(200).send({
+		  message: "Appointments fetched successfully",
+		  success: true,
+		  data: appointments,
+		});
+	  } catch (error) {
+		console.log(error);
+		res.status(500).send({
+		  message: "Error fetching appointments",
+		  success: false,
+		  error,
+		});
+	  }
+	}
+  );
+  
+  //change appointment status
+  router.post("/change-appointment-status", isAdmin, async (req, res) => {
+	try {
+	  const { appointmentId, status } = req.body;
+	  const appointment = await Appointment.findByIdAndUpdate(appointmentId, {
+		status,
+	  });
+  
+	  res.status(200).send({
+		message: "Appointment status updated successfully",
+		success: true
+	  });
+	} catch (error) {
+	  console.log(error);
+	  res.status(500).send({
+		message: "Error changing appointment status",
+		success: false,
+		error,
+	  });
+	}
+  });
+  
 
 
 

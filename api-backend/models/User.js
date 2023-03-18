@@ -37,11 +37,17 @@ const userSchema=new mongoose.Schema({
         type:Number,
     },
     experience:{
-        type:String,
+        type:Number,
 
     },
     timings:{
         type:Array,
+    },
+    duration: {
+        type: Number,
+    },
+    slot: {
+        type: Array,
     },
     admin:{
         type:Boolean,
